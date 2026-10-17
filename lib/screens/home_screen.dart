@@ -1,25 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:yaml/yaml.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../config/theme_config.dart';
-import '../utils/text_helpers.dart';
-import '../widgets/common_widgets.dart';
-import '../widgets/book_card_widget.dart';
-import 'poem_detail_screen.dart';
-import 'poem_list_screen.dart';
+import 'package:yaml/yaml.dart';
+
+import '../core/theme.dart';
+import '../core/helpers.dart';
+import '../core/widgets.dart';
+import 'detail_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
-
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
   List<Map<String, dynamic>> books = [];
-  Map<String, dynamic>? lastRead;
   bool isLoading = true;
 
   @override
@@ -31,121 +27,168 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadData() async {
     await _loadBooks();
     await _loadLastRead();
-    setState(() => isLoading = false);
+    if (mounted) setState(() => isLoading = false);
   }
 
   Future<void> _loadBooks() async {
     try {
       final yamlString =
           await rootBundle.loadString('assets/data/list-of-lists.yaml');
-      final YamlMap yamlMap = loadYaml(yamlString);
-      final lists = yamlMap['lists'] as YamlList;
+      final lists = (loadYaml(yamlString) as YamlMap)['lists'] as YamlList;
       books = lists
           .map((list) => {
-                'id': list['id'],
+                'id': list['id'].toString(),
                 'nameUr': TextHelpers.getText(list['name'], 'ur'),
                 'nameEn': TextHelpers.getText(list['name'], 'en'),
               })
           .toList();
-    } catch (e) {}
+    } catch (_) {}
   }
 
   Future<void> _loadLastRead() async {
     final prefs = await SharedPreferences.getInstance();
     final id = prefs.getString('last_poem_id');
     if (id != null) {
-      lastRead = {'id': id, 'title': prefs.getString('last_poem_title') ?? ''};
+      lastReadNotifier.value = {
+        'id': id,
+        'title': prefs.getString('last_poem_title') ?? '',
+      };
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      appBar: AppBar(
-        toolbarHeight: 100,
-        title: Image.asset(
-          'assets/images/icon.png',
-          height: 100,
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(
-              Icons.info_outline,
-              color: AppTheme.darkColor,
-            ),
-            onPressed: () => CommonWidgets.showInfoDialog(context),
-          ),
-          const SizedBox(
-            width: 10,
-          )
-        ],
-      ),
-      body: isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppTheme.primaryColor))
-          : Directionality(
-              textDirection: TextDirection.rtl,
-              child: Column(
-                children: [
-                  if (lastRead != null) _buildContinueCard(),
-                  Expanded(
-                    child: ListView.builder(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: books.length,
-                      itemBuilder: (context, index) => BookCardWidget(
-                        nameUr: books[index]['nameUr'],
-                        nameEn: books[index]['nameEn'],
-                        index: index,
-                        onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => PoemListScreen(
-                                    bookId: books[index]['id'],
-                                    bookName: books[index]['nameUr']))),
+    return Column(
+      children: [
+        _header(context),
+        Expanded(
+          child: isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : CustomScrollView(
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: ValueListenableBuilder<Map<String, String>?>(
+                        valueListenable: lastReadNotifier,
+                        builder: (context, last, _) => last == null
+                            ? const SizedBox.shrink()
+                            : _continueCard(context, last),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(24, 24, 24, 36),
+                      sliver: SliverGrid(
+                        gridDelegate:
+                            const SliverGridDelegateWithMaxCrossAxisExtent(
+                          maxCrossAxisExtent: 200,
+                          mainAxisSpacing: 22,
+                          crossAxisSpacing: 22,
+                          childAspectRatio: 0.78,
+                        ),
+                        delegate: SliverChildBuilderDelegate(
+                          (context, i) {
+                            final b = books[i];
+                            final tone = AppTheme.toneFor(b['id'], i);
+                            return BookTile(
+                              urdu: b['nameUr'],
+                              english: b['nameEn'],
+                              tone: tone,
+                              onTap: () => Navigator.push(
+                                context,
+                                fadeRoute(PoemListScreen(
+                                  bookId: b['id'],
+                                  bookName: b['nameUr'],
+                                  bookNameEn: b['nameEn'],
+                                  tone: tone,
+                                )),
+                              ),
+                            );
+                          },
+                          childCount: books.length,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+      ],
     );
   }
 
-  Widget _buildContinueCard() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      decoration: BoxDecoration(
-        color: AppTheme.secondaryColor,
-        borderRadius: BorderRadius.circular(24),
+  Widget _header(BuildContext context) {
+    return SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(28, 22, 12, 4),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('علامہ محمد اقبال',
+                      textAlign: TextAlign.left,
+                      textDirection: TextDirection.rtl,
+                      style: AppText.urdu(40, height: 1.6)),
+                  Text('Offline poetry',
+                      style: AppText.sans(13.5, color: AppTheme.textMuted)),
+                ],
+              ),
+            ),
+            const BrandMark(size: 48),
+            IconButton(
+              icon: const Icon(Icons.info_outline_rounded,
+                  size: 21, color: AppTheme.textSecondary),
+              onPressed: () => CommonWidgets.showInfoDialog(context),
+            ),
+          ],
+        ),
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-        leading: const Icon(
-          Icons.history,
-          color: AppTheme.primaryColor,
-          size: 32,
+    );
+  }
+
+  Widget _continueCard(BuildContext context, Map<String, String> last) {
+    final tone = AppTheme.toneFor(last['id']!.split('_').first);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+      child: Material(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(22),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: () => Navigator.push(
+              context, fadeRoute(PoemDetailScreen(poemId: last['id']!))),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: tone.bg,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.arrow_forward_rounded,
+                      size: 20, color: tone.fg),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text('Continue reading',
+                          style: AppText.sans(12, color: AppTheme.textMuted)),
+                      const SizedBox(height: 2),
+                      AutoText(last['title'] ?? '',
+                          urduSize: 20, latinSize: 15, maxLines: 1),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 6),
+              ],
+            ),
+          ),
         ),
-        title: Text('پڑھنا جاری رکھیں',
-            style: GoogleFonts.notoNastaliqUrdu(
-              fontWeight: FontWeight.w600,
-              color: AppTheme.primaryColor,
-            )),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 12),
-          child: Text(lastRead!['title'],
-              style: GoogleFonts.notoNastaliqUrdu(
-                color: AppTheme.primaryColor,
-              )),
-        ),
-        trailing: const Icon(
-          Icons.chevron_right,
-          color: AppTheme.primaryColor,
-        ),
-        onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-                builder: (_) => PoemDetailScreen(poemId: lastRead!['id']))),
       ),
     );
   }

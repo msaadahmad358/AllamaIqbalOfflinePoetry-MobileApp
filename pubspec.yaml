@@ -1,5 +1,5 @@
 name: iqbal_app
-description: Iqbal Demystified - Collection of Urdu/Persian poetry
+description: Allama Iqbal offline poetry - Collection of Urdu/Persian poetry
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -31,14 +31,14 @@ flutter_launcher_icons:
   android: true
   ios: true
   image_path: "assets/images/icon.png"
-  adaptive_icon_background: "#2D1304"
+  adaptive_icon_background: "#1F1410"
   adaptive_icon_foreground: "assets/images/icon.png"
   min_sdk_android: 21
   web:
     generate: true
     image_path: "assets/images/icon.png"
-    background_color: "#2D1304"
-    theme_color: "#C3601F"
+    background_color: "#1F1410"
+    theme_color: "#D7263D"
   windows:
     generate: true
     image_path: "assets/images/icon.png"
@@ -65,3 +65,12 @@ flutter:
     - assets/poems/009/
     - assets/poems/010/
     - assets/poems/011/
+
+  fonts:
+    - family: JameelNoori
+      fonts:
+        - asset: assets/fonts/Jameel Noori Nastaleeq Regular.ttf
+    - family: JameelNooriBold
+      fonts:
+        - asset: assets/fonts/Jameel Noori Nastaleeq Regular.ttf
+          weight: 700
